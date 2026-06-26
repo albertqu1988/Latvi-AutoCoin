@@ -11,19 +11,15 @@ MAX_CLAIMS = int(os.environ.get("MAX_CLAIMS", "20"))
 COOLDOWN_SEC = int(os.environ.get("COOLDOWN_SEC", "30"))
 PROXY = os.environ.get("PROXY", "")  # socks5:// or http://
 
+def log(msg):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+
 sess = requests.Session()
 sess.headers.update({"User-Agent": UA})
 
 if PROXY:
-    if PROXY.startswith("socks5"):
-        # Add a gap before @ to avoid parsing issues
-        sess.proxies = {"http": PROXY, "https": PROXY}
-    else:
-        sess.proxies = {"http": PROXY, "https": PROXY}
-    log(f"[proxy] {PROXY}")
-
-def log(msg):
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
+    sess.proxies = {"http": PROXY, "https": PROXY}
+    log(f"proxy {PROXY.split('@')[0][:20]}...@{PROXY.split('@')[1].split(':')[0] if '@' in PROXY else ''}")
 
 # ─── auth ─────────────────────────────────────────
 def login():
