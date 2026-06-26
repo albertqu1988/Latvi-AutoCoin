@@ -18,46 +18,14 @@ jobs:
 
       - name: Install Chrome
         run: |
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable || true
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq google-chrome-stable 2>/dev/null || true
 
       - name: Install deps
         run: pip install seleniumbase requests
-
-      - name: Setup proxy (optional)
-        env:
-          RAW_PROXY: ${{ secrets.PROXY }}
-        run: |
-          if [[ -z "$RAW_PROXY" ]]; then
-            echo "PROXY=" >> $GITHUB_ENV
-            exit 0
-          fi
-          if [[ "$RAW_PROXY" =~ ^(socks5|http|https):// ]]; then
-            echo "PROXY=$RAW_PROXY" >> $GITHUB_ENV
-            exit 0
-          fi
-          [[ "$RAW_PROXY" =~ ^hysteria2:// ]] || { echo "unsupported proxy"; exit 1; }
-          wget -qO sb.tar.gz https://github.com/SagerNet/sing-box/releases/download/v1.13.7/sing-box-1.13.7-linux-amd64.tar.gz
-          tar -xzf sb.tar.gz
-          mv sing-box-*/sing-box ./sing-box && chmod +x ./sing-box
-          STRIPPED="${RAW_PROXY#hysteria2://}"; STRIPPED="${STRIPPED%%#*}"
-          NO_QUERY="${STRIPPED%%\?*}"; QUERY="${STRIPPED#*\?}"
-          AUTH_HOST="${NO_QUERY%@*}"; HOSTPORT="${NO_QUERY##*@}"
-          USER="${AUTH_HOST%:*}"; PASS="${AUTH_HOST#*:}"
-          HOST="${HOSTPORT%:*}"; PORT="${HOSTPORT#*:}"
-          PEER=$(echo "$QUERY"|tr '&' '\n'|grep '^peer='|sed 's/^peer=//'); PEER="${PEER:-www.bing.com}"
-          ALPN=$(echo "$QUERY"|tr '&' '\n'|grep '^alpn='|sed 's/^alpn=//'); ALPN="${ALPN:-h3}"
-          INSECURE_LINE=""; [[ "$(echo "$QUERY"|tr '&' '\n'|grep '^insecure=1')" ]] && INSECURE_LINE='"insecure": true,'
-          cat > config.json <<CFG
-          {"log":{"level":"warn"},"inbounds":[{"type":"socks","tag":"socks-in","listen":"127.0.0.1","listen_port":1080}],"outbounds":[{"type":"hysteria2","tag":"hy2-out","server":"${HOST}","server_port":${PORT},"password":"${PASS}","tls":{"enabled":true,"server_name":"${PEER}","alpn":["${ALPN}"],${INSECURE_LINE}}}]}
-CFG
-          ./sing-box run -c config.json &
-          sleep 3
-          echo "PROXY=socks5://127.0.0.1:1080" >> $GITHUB_ENV
 
       - name: Run latvi_coin_uc.py
         env:
           LATVI_EMAIL: ${{ secrets.LATVI_EMAIL }}
           LATVI_PASSWORD: ${{ secrets.LATVI_PASSWORD }}
-          PROXY: ${{ env.PROXY }}
         run: python latvi_coin_uc.py
