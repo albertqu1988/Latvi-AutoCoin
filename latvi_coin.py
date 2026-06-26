@@ -63,13 +63,27 @@ def daily():
 # ─── cooldown ─────────────────────────────────────
 def cooldown():
     r = sess.get(f"{BASE}/linkvertise")
-    m = re.search(r'Claims Today:\s*(\d+)\s*/\s*(\d+)', r.text)
-    if m:
-        done, max_ = int(m.group(1)), int(m.group(2))
-        rem = max_ - done
-        log(f"progress  {done}/{max_}  ({rem} left)")
-        return rem
-    log("progress  ?/? (check raw)")
+    # Multiple pattern fallbacks
+    for pat in [r'Claims Today:\s*(\d+)\s*/\s*(\d+)',
+                 r'(\d+)\s*/\s*20',
+                 r'(\d+)\s*/\s*(\d+)']:
+        m = re.search(pat, r.text)
+        if m:
+            groups = m.groups()
+            if len(groups) == 2:
+                done, max_ = int(groups[0]), int(groups[1])
+                rem = max_ - done
+                log(f"progress  {done}/{max_}  ({rem} left)")
+                return rem
+            # Single number (e.g. from d/20)
+            done = int(groups[0])
+            rem = max(0, 20 - done)
+            log(f"progress  {done}/20  ({rem} left)")
+            return rem
+    # Debug snippet if nothing matched
+    clean = re.sub(r'<[^>]+>', '', r.text).strip()
+    clean = re.sub(r'\s+', ' ', clean)[:300]
+    log(f"progress no match. raw: {clean}")
     return MAX_CLAIMS
 
 # ─── generate ─────────────────────────────────────
