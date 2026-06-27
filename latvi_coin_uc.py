@@ -18,7 +18,11 @@ proxy_dict = {"http": PROXY_URL, "https": PROXY_URL}
 def log(m): print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] {m}", flush=True)
 
 def direct_get(path, **kw):
-    return sess.get(f"{BASE}{path}", timeout=15, **kw)
+    # 先直连，超时则走代理
+    try:
+        return sess.get(f"{BASE}{path}", timeout=10, **kw)
+    except:
+        return sess.get(f"{BASE}{path}", timeout=15, proxies=proxy_dict, **kw)
 
 def proxy_get(url, **kw):
     return sess.get(url, proxies=proxy_dict, timeout=20, **kw)
