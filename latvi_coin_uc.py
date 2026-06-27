@@ -69,36 +69,58 @@ def cooldown():
     return MAX_CLAIMS
 
 def get_campaign():
-    """Get linkvertise campaign from latvi /linkvertise page"""
-    r = direct_get("/linkvertise")
+    """Get linkvertise campaign + verify URL from latvi /linkvertise/generate"""
+    r = direct_get("/linkvertise/generate")
     
-    # Try to find linkvertise campaign ID directly in page
-    m = re.search(r'linkvertise\.com/(\d+)', r.text)
-    if m:
-        return m.group(1)
+    # Extract link-to.net or linkvertise URL
+    m = re.search(r'(?:link-to\.net|linkvertise\.com)/(\d+)', r.text)
+    cid = m.group(1) if m else None
     
-    # Try to find any shortener link
-    m2 = re.findall(r'href="(https?://[^"]*)"', r.text)
-    for url in m2:
-        if 'linkvertise' in url or 'link-to' in url or 'linkpays' in url:
-            log(f"found link: {url[:80]}")
-            try:
-                r2 = proxy_get(url, allow_redirects=True)
-                m3 = re.search(r'linkvertise\.com/(\d+)', r2.url)
-                if not m3:
-                    m3 = re.search(r'linkvertise\.com/(\d+)', r2.text)
-                if m3:
-                    return m3.group(1)
-            except Exception as e:
-                log(f"  follow failed: {str(e)[:60]}")
+    # Extract verify URL from base64 r= parameter
+    verify_url = None
+    m2 = re.search(r'r=([A-Za-z0-9+/=]+)', r.text)
+    if m2:
+        import base64
+        try:
+            decoded = base64.b64decode(m2.group(1)).decode()
+            if decoded.startswith("http"):
+                verify_url = decoded
+        except:
+            pass
     
-    return None
+    # Fallback: look for verify URL in href
+    if not verify_url:
+        m3 = re.search(r'href="(https?://[^"]*linkvertise/verify[^"]*)"', r.text)
+        if m3:
+            verify_url = m3.group(1)
+    
+    if cid:
+        log(f"campaign: {cid}, verify: {verify_url[:60] if verify_url else 'none'}...")
+    
+    return cid, verify_url
 
-def earn(cid):
-    """Call linkvertise API through proxy"""
+def earn(cid, verify_url):
+    """Try linkvertise API through proxy, fallback to direct verify"""
+    
+    # If we already have the verify URL, just hit it directly
+    if verify_url:
+        log(f"direct verify: {verify_url[:60]}...")
+        try:
+            rv = direct_get(verify_url.replace(BASE, ""))
+            log(f"verify [{rv.status_code}] ✅")
+            return True
+        except:
+            try:
+                rv = sess.get(verify_url, timeout=15)
+                log(f"verify (full) [{rv.status_code}] ✅")
+                return True
+            except Exception as e:
+                log(f"verify failed: {str(e)[:60]}")
+    
+    # Fallback: linkvertise API through proxy
     api_url = f"https://linkvertise.com/api/v1/getContent?campaign={cid}"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/json, text/plain, */*",
         "Referer": "https://linkvertise.com/",
     }
@@ -109,11 +131,9 @@ def earn(cid):
             log(f"getContent [{rapi.status_code}]: {rapi.text[:150]}")
             
             if rapi.status_code != 200:
-                log(f"  API returned {rapi.status_code}, retry...")
                 time.sleep(5)
                 continue
             
-            # Parse JSON
             try:
                 data = rapi.json()
             except:
@@ -123,25 +143,20 @@ def earn(cid):
             
             tasks = data.get("data", {}).get("tasks", [])
             
-            # Step 1: WaitTask
             has_wait = any(t.get("type") == "WaitTask" for t in tasks)
             if has_wait:
-                log("WaitTask found, waiting 14s...")
+                log("WaitTask, waiting 14s...")
                 time.sleep(14)
-                
-                # Step 2: re-check
                 rapi2 = proxy_get(api_url, headers=headers)
                 try:
-                    data2 = rapi2.json()
+                    data = rapi2.json()
                 except:
-                    log(f"  retry not JSON: {rapi2.text[:100]}")
                     time.sleep(5)
                     continue
             
-            # Step 3: Check for AdTask
             has_ad = any(t.get("type") == "AdTask" for t in tasks)
             if has_ad:
-                log("AdTask found, waiting 10s...")
+                log("AdTask, waiting 10s...")
                 time.sleep(10)
                 rapi3 = proxy_get(api_url, headers=headers)
                 try:
@@ -149,14 +164,12 @@ def earn(cid):
                 except:
                     pass
             
-            # Step 4: Get verify URL
             target = data.get("data", {}).get("link", "")
             if not target:
                 target = data.get("data", {}).get("DetailPageTargetData", {}).get("link", "")
             
             if target:
-                log(f"verify URL: {target[:80]}")
-                # Verify directly (latvi side, no proxy needed)
+                log(f"API verify: {target[:60]}...")
                 if target.startswith("/"):
                     rv = direct_get(target)
                 elif BASE in target:
@@ -166,10 +179,10 @@ def earn(cid):
                 log(f"verify [{rv.status_code}] ✅")
                 return True
             else:
-                log(f"  no verify URL in response")
+                log("  no verify URL in API response")
                 
         except Exception as e:
-            log(f"  attempt {attempt+1} error: {str(e)[:80]}")
+            log(f"  attempt {attempt+1}: {str(e)[:60]}")
             time.sleep(5)
     
     return False
@@ -197,13 +210,12 @@ def main():
     ok = 0
     for i in range(min(rem, MAX_CLAIMS)):
         log(f"--- #{i+1} ---")
-        cid = get_campaign()
+        cid, verify_url = get_campaign()
         if not cid:
             log("❌ no campaign found")
             break
-        log(f"campaign: {cid}")
         
-        if earn(cid):
+        if earn(cid, verify_url):
             ok += 1
         else:
             log("❌ earn failed, try next")
