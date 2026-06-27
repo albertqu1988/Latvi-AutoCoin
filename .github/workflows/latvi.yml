@@ -17,10 +17,13 @@ jobs:
           python-version: '3.11'
 
       - name: Install deps
-        run: pip install requests pysocks
+        run: |
+          pip install requests seleniumbase
+          seleniumbase install chromedriver
 
-      - name: Run latvi_coin_uc.py
+      - name: Run latvi
         env:
           LATVI_EMAIL: ${{ secrets.LATVI_EMAIL }}
           LATVI_PASSWORD: ${{ secrets.LATVI_PASSWORD }}
-        run: python latvi_coin_uc.py
+        run: |
+          xvfb-run -a python latvi_coin_uc.py

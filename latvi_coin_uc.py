@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-latvi.space Auto Coin — GraphQL linkvertise bypass
-直连 latvi 登录 → publisher.linkvertise.com/graphql 绕过任务 → latvi verify
+latvi.space Auto Coin — SeleniumBase UC mode
+直接用浏览器访问 linkvertise，UC 模式过 CF
 """
 import time, re, json, os, base64, requests
 from datetime import datetime, timezone
@@ -11,33 +11,12 @@ EMAIL = os.environ.get("LATVI_EMAIL", "btpp03@gmail.com")
 PASSWORD = os.environ.get("LATVI_PASSWORD", "Hlm@0649")
 MAX_CLAIMS = int(os.environ.get("MAX_CLAIMS", "20"))
 
-# Linkvertise GraphQL
-LV_GRAPHQL = "https://publisher.linkvertise.com/graphql"
-LV_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-    "Origin": "https://linkvertise.com",
-    "Referer": "https://linkvertise.com",
-    "Content-Type": "application/json",
-}
-
-# GraphQL queries (from linkvertise-bypasser)
-GDPC_QUERY = """query getDetailPageContent($linkIdentificationInput: LinkIdentificationInput!, $origin: String, $additional_data: AdditionalDataInput) { getDetailPageContent(linkIdentificationInput: $linkIdentificationInput, origin: $origin, additional_data: $additional_data) { access_token } }"""
-CDPC_QUERY = """mutation completeDetailPageContent($linkIdentificationInput: LinkIdentificationInput!, $completeDetailPageContentInput: CompleteDetailPageContentInput!) { completeDetailPageContent(linkIdentificationInput: $linkIdentificationInput, completeDetailPageContentInput: $completeDetailPageContentInput) { TARGET } }"""
-GDPT_QUERY = """query getDetailPageTarget($linkIdentificationInput: LinkIdentificationInput!, $token: String!) { getDetailPageTarget(linkIdentificationInput: $linkIdentificationInput, token: $token) { url } }"""
-
 sess = requests.Session()
-lv_sess = requests.Session()  # Separate session for linkvertise
 
 def log(m): print(f"[{datetime.now(timezone.utc).strftime('%H:%M:%S')}] {m}", flush=True)
 
-def direct_get(path, **kw):
-    try:
-        return sess.get(f"{BASE}{path}", timeout=10, **kw)
-    except:
-        return sess.get(f"{BASE}{path}", timeout=15, **kw)
-
 def login():
-    r = direct_get("/login")
+    r = sess.get(f"{BASE}/login", timeout=10)
     m = re.search(r'name="_token"[^>]*value="([^"]*)"', r.text)
     token = m.group(1) if m else None
     data = {"email": EMAIL, "password": PASSWORD}
@@ -51,12 +30,12 @@ def login():
     return False
 
 def balance():
-    r = direct_get("/home")
+    r = sess.get(f"{BASE}/home", timeout=10)
     m = re.search(r'([\d.]+)\s*(?:credit|coin)', r.text, re.I)
     return float(m.group(1)) if m else 0.0
 
 def cooldown():
-    r = direct_get("/linkvertise")
+    r = sess.get(f"{BASE}/linkvertise", timeout=10)
     m = re.search(r'Claims Today:\s*(\d+)\s*/\s*(\d+)', r.text)
     if m:
         rem = int(m.group(2)) - int(m.group(1))
@@ -64,165 +43,85 @@ def cooldown():
         return rem
     return MAX_CLAIMS
 
-def get_campaign():
-    """Get linkvertise user_id + post_id + verify URL from latvi /linkvertise/generate"""
-    r = direct_get("/linkvertise/generate")
+def get_link():
+    """Get linkvertise link + verify URL from latvi /linkvertise/generate"""
+    r = sess.get(f"{BASE}/linkvertise/generate", timeout=10)
     
-    # Extract link-to.net or linkvertise URL: /{user_id}/{post_id}/...
-    m = re.search(r'(?:link-to\.net|linkvertise\.com)/(\d+)/([a-z0-9]+)', r.text)
+    # Extract full link-to.net URL
+    m = re.search(r'(https?://link-to\.net/[^\s"\']+)', r.text)
     if not m:
-        # Try href
-        m2 = re.search(r'href="(https?://[^"]*(?:link-to|linkvertise)[^"]*)"', r.text)
-        if m2:
-            m = re.search(r'/(?:link-to\.net/|linkvertise\.com/)(\d+)/([a-z0-9]+)', m2.group(1))
+        m = re.search(r'(https?://linkvertise\.com/[^\s"\']+)', r.text)
     
-    if not m:
-        return None, None, None
+    link_url = m.group(1).rstrip("';") if m else None
     
-    user_id = m.group(1)
-    post_id = m.group(2)
-    
-    # Extract verify URL from base64 r= parameter
+    # Extract verify URL from base64
     verify_url = None
-    m3 = re.search(r'r=([A-Za-z0-9+/=]+)', r.text)
-    if m3:
+    m2 = re.search(r'r=([A-Za-z0-9+/=]+)', r.text)
+    if m2:
         try:
-            decoded = base64.b64decode(m3.group(1)).decode()
+            decoded = base64.b64decode(m2.group(1)).decode()
             if decoded.startswith("http"):
                 verify_url = decoded
         except:
             pass
     
-    return user_id, post_id, verify_url
+    return link_url, verify_url
 
-def bypass_linkvertise(user_id, post_id):
-    """Bypass linkvertise using GraphQL API (3-step flow)"""
-    post_str = f"https://linkvertise.com/{user_id}/{post_id}"
+def run_browser(link_url, verify_url):
+    """Use SeleniumBase UC to visit linkvertise and wait for redirect"""
+    from seleniumbase import SB
     
-    # Step 1: Get access token
-    payload1 = {
-        "operationName": "getDetailPageContent",
-        "variables": {
-            "linkIdentificationInput": {
-                "userIdAndUrl": {
-                    "user_id": user_id,
-                    "url": post_id
-                }
-            },
-            "origin": "sharing",
-            "additional_data": {
-                "taboola": {
-                    "user_id": "fallbackUserId",
-                    "url": post_str
-                }
-            }
-        },
-        "query": GDPC_QUERY
-    }
-    
-    r1 = lv_sess.post(LV_GRAPHQL, json=payload1, headers=LV_HEADERS, timeout=15)
-    log(f"step1 [{r1.status_code}]: {r1.text[:120]}")
-    
-    if r1.status_code != 200:
-        return None
-    
-    try:
-        data1 = r1.json()
-    except:
-        log(f"  step1 not JSON")
-        return None
-    
-    if "errors" in data1:
-        for e in data1["errors"]:
-            log(f"  GraphQL error: {e.get('message','')}")
-        return None
-    
-    access_token = data1.get("data", {}).get("getDetailPageContent", {}).get("access_token")
-    if not access_token:
-        log("  no access_token")
-        return None
-    
-    log(f"  access_token: {access_token[:20]}...")
-    
-    # Step 2: Complete detail page content (get TARGET/post_token)
-    payload2 = {
-        "operationName": "completeDetailPageContent",
-        "variables": {
-            "linkIdentificationInput": {
-                "userIdAndUrl": {
-                    "user_id": user_id,
-                    "url": post_id
-                }
-            },
-            "completeDetailPageContentInput": {
-                "access_token": access_token
-            }
-        },
-        "query": CDPC_QUERY
-    }
-    
-    r2 = lv_sess.post(LV_GRAPHQL, json=payload2, headers=LV_HEADERS, timeout=15)
-    log(f"step2 [{r2.status_code}]: {r2.text[:120]}")
-    
-    if r2.status_code != 200:
-        return None
-    
-    try:
-        data2 = r2.json()
-    except:
-        return None
-    
-    post_token = data2.get("data", {}).get("completeDetailPageContent", {}).get("TARGET")
-    if not post_token:
-        log("  no TARGET")
-        return None
-    
-    log(f"  post_token: {post_token[:20]}...")
-    
-    # Step 3: Get detail page target (final URL)
-    payload3 = {
-        "operationName": "getDetailPageTarget",
-        "variables": {
-            "linkIdentificationInput": {
-                "userIdAndUrl": {
-                    "user_id": user_id,
-                    "url": post_id
-                }
-            },
-            "token": post_token
-        },
-        "query": GDPT_QUERY
-    }
-    
-    r3 = lv_sess.post(LV_GRAPHQL, json=payload3, headers=LV_HEADERS, timeout=15)
-    log(f"step3 [{r3.status_code}]: {r3.text[:120]}")
-    
-    if r3.status_code != 200:
-        return None
-    
-    try:
-        data3 = r3.json()
-    except:
-        return None
-    
-    target_url = data3.get("data", {}).get("getDetailPageTarget", {}).get("url")
-    return target_url
-
-def verify(verify_url):
-    """Hit latvi verify URL to claim credits"""
-    try:
-        path = verify_url.replace(BASE, "")
-        rv = direct_get(path)
-        log(f"verify [{rv.status_code}]")
-        if rv.status_code == 200:
-            return True
-        return False
-    except Exception as e:
-        log(f"verify error: {str(e)[:60]}")
+    with SB(uc=True, test=True, headless=True) as sb:
+        log(f"opening: {link_url[:60]}...")
+        sb.open(link_url)
+        sb.sleep(5)
+        
+        # Check current URL
+        current = sb.get_current_url()
+        log(f"after 5s: {current[:80]}")
+        
+        # Wait for linkvertise to process (max 60s)
+        for i in range(12):
+            sb.sleep(5)
+            current = sb.get_current_url()
+            log(f"  {(i+1)*5}s: {current[:80]}")
+            
+            # Check if redirected to latvi verify
+            if "latvi.space" in current or "verify" in current:
+                log("✅ redirected to latvi!")
+                return True
+            
+            # Check if on linkvertise and need to click
+            if "linkvertise" in current:
+                try:
+                    # Look for "Continue" or "Free" button
+                    btns = sb.find_elements("button")
+                    for btn in btns:
+                        txt = btn.text.lower()
+                        if any(k in txt for k in ["continue", "free", "next", "skip", "claim"]):
+                            log(f"  clicking: {btn.text}")
+                            btn.click()
+                            sb.sleep(3)
+                            break
+                except:
+                    pass
+        
+        # After waiting, try the verify URL directly
+        if verify_url:
+            log(f"trying verify: {verify_url[:60]}...")
+            # Get cookies from browser session
+            cookies = sb.get_cookies()
+            for c in cookies:
+                sess.cookies.set(c['name'], c['value'])
+            
+            r = sess.get(verify_url, timeout=15)
+            log(f"verify [{r.status_code}]")
+            return r.status_code == 200
+        
         return False
 
 def main():
-    log("🚀 latvi (GraphQL bypass)")
+    log("🚀 latvi (SeleniumBase UC)")
     
     if not login():
         return
@@ -238,38 +137,17 @@ def main():
     ok = 0
     for i in range(min(rem, MAX_CLAIMS)):
         log(f"--- #{i+1} ---")
-        uid, pid, vurl = get_campaign()
-        if not uid:
-            log("❌ no campaign found")
+        link_url, verify_url = get_link()
+        if not link_url:
+            log("❌ no link found")
             break
-        log(f"campaign: {uid}/{pid}")
+        log(f"link: {link_url[:60]}...")
         
-        # Try GraphQL bypass first
-        target = bypass_linkvertise(uid, pid)
-        
-        # If bypass gave us a URL, use it; otherwise use the verify URL from generate
-        if target and target.startswith("http"):
-            log(f"bypass URL: {target[:60]}...")
-            # The bypass URL might be the same as verify URL, or different
-            if "verify" in target:
-                if verify(target):
-                    ok += 1
-            else:
-                # Visit the bypass URL, which should redirect to latvi verify
-                try:
-                    r = sess.get(target, timeout=15, allow_redirects=True)
-                    log(f"follow [{r.status_code}] → {r.url[:60]}")
-                    if "verify" in r.url:
-                        ok += 1
-                except:
-                    pass
-        elif vurl:
-            # Fallback: try direct verify
-            if verify(vurl):
-                ok += 1
+        if run_browser(link_url, verify_url):
+            ok += 1
+            log("✅ credited!")
         else:
-            log("❌ no URL to verify")
-        
+            log("❌ failed")
         time.sleep(3)
     
     b1 = balance()
