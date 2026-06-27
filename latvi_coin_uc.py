@@ -141,7 +141,10 @@ def try_proxy(proxy_url, idx, total):
         return True
 
     finally:
-        try: d.quit(); except: pass
+        try:
+            d.quit()
+        except:
+            pass
 
 def main():
     log("🚀 latvi (GOST + proxy list)")
