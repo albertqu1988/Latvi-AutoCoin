@@ -18,22 +18,28 @@ PROXY = os.environ.get("PROXY", "").strip()
 import requests
 sess = requests.Session()
 
-# Proxy priority: GOST tunnel (127.0.0.1:8080) > direct proxy > none
-GOST = "http://127.0.0.1:8080"
+# Proxy priority: SOCKS5 direct > GOST tunnel > none
 use_proxy = None
-try:
-    r = requests.get(GOST, timeout=2)
-    use_proxy = GOST
-    log.info("Proxy: GOST tunnel")
-except:
-    if PROXY:
+proxy_type = "none"
+
+if PROXY:
+    # If SOCKS5, use directly (more reliable than GOST)
+    if PROXY.startswith("socks5"):
         use_proxy = PROXY
-        log.info("Proxy: direct")
+        proxy_type = "SOCKS5 direct"
     else:
-        log.info("Proxy: none")
+        # Try GOST tunnel for HTTP proxies
+        try:
+            r = requests.get("http://127.0.0.1:8080", timeout=2)
+            use_proxy = "http://127.0.0.1:8080"
+            proxy_type = "GOST tunnel"
+        except:
+            use_proxy = PROXY
+            proxy_type = "HTTP direct"
 
 if use_proxy:
     sess.proxies.update({"http": use_proxy, "https": use_proxy})
+    log.info(f"Proxy: {proxy_type}")
 
 sess.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"})
 
