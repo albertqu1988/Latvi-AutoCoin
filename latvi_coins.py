@@ -23,19 +23,14 @@ use_proxy = None
 proxy_type = "none"
 
 if PROXY:
-    # If SOCKS5, use directly (more reliable than GOST)
-    if PROXY.startswith("socks5"):
+    # Always try GOST tunnel first (keeps IP consistent)
+    try:
+        r = requests.get("http://127.0.0.1:8080", timeout=2)
+        use_proxy = "http://127.0.0.1:8080"
+        proxy_type = "GOST tunnel"
+    except:
         use_proxy = PROXY
-        proxy_type = "SOCKS5 direct"
-    else:
-        # Try GOST tunnel for HTTP proxies
-        try:
-            r = requests.get("http://127.0.0.1:8080", timeout=2)
-            use_proxy = "http://127.0.0.1:8080"
-            proxy_type = "GOST tunnel"
-        except:
-            use_proxy = PROXY
-            proxy_type = "HTTP direct"
+        proxy_type = "HTTP direct"
 
 if use_proxy:
     sess.proxies.update({"http": use_proxy, "https": use_proxy})
