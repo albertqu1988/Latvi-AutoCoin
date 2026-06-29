@@ -50,7 +50,7 @@ jobs:
       - name: 🌐 Test proxy connectivity
         run: |
           echo "=== Direct proxy test ==="
-          curl -s --max-time 10 -x "$PROXY" https://dash.latvi.space 2>&1 | head -3 || echo "PROXY UNREACHABLE"
+          if curl -s --max-time 15 -x "$PROXY" https://dash.latvi.space > /dev/null 2>&1; then echo "PROXY OK"; else echo "PROXY FAILED"; fi
 
       - name: 🚀 Run
         run: python latvi_coins.py
