@@ -17,9 +17,24 @@ MAX_CLAIMS = int(os.environ.get("MAX_CLAIMS", "20"))
 
 import requests
 sess = requests.Session()
-if PROXY:
-    sess.proxies = {"http": PROXY, "https": PROXY}
-    log.info(f"Proxy set")
+
+# Try GOST tunnel first, then direct proxy
+gost_proxy = "http://127.0.0.1:8080"
+use_proxy = PROXY  # default to direct
+# Check if GOST is running
+try:
+    import urllib.request
+    r = urllib.request.urlopen("http://127.0.0.1:8080", timeout=2)
+    use_proxy = gost_proxy
+    log.info("Using GOST tunnel (127.0.0.1:8080)")
+except:
+    if PROXY:
+        log.info(f"Using direct proxy")
+    else:
+        log.info("No proxy")
+
+if use_proxy:
+    sess.proxies = {"http": use_proxy, "https": use_proxy}
 
 sess.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"})
 
