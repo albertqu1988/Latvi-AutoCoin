@@ -177,6 +177,42 @@ def claim(link_url, verify_url):
         return False
 
 
+def daily_reward():
+    """Claim daily reward (works without linkvertise)."""
+    try:
+        # Get fresh CSRF token from daily-rewards page
+        r = sess.get(f"{BASE}/daily-rewards", timeout=15)
+        m = re.search(r'name="_token"[^>]*value="([^"]*)"', r.text)
+        token = m.group(1) if m else None
+        if not token:
+            log.warning("No CSRF token for daily reward")
+            return False
+
+        # Check streak info
+        streak = re.search(r'id="streakCount"[^>]*>(\d+)<', r.text)
+        timer = re.search(r'let secondsRemaining = (\d+)', r.text)
+        if timer:
+            secs = int(timer.group(1))
+            if secs > 0:
+                log.info(f"Daily reward: next in {secs//3600}h {(secs%3600)//60}m (streak: {streak.group(1) if streak else '?'})")
+                return False
+
+        log.info(f"Daily reward: claiming (streak: {streak.group(1) if streak else '?'})...")
+        headers = {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token,
+            "Accept": "application/json, text/plain, */*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{BASE}/daily-rewards",
+        }
+        r2 = sess.post(f"{BASE}/daily-rewards/claim", json={}, headers=headers, timeout=15)
+        data = r2.json()
+        log.info(f"  ✅ {data.get('message', data.get('reward', str(data)))}")
+        return True
+    except Exception as e:
+        log.warning(f"Daily reward: {e}")
+        return False
+
 def main():
     log.info("=== Latvi Auto Coin ===")
 
@@ -186,9 +222,13 @@ def main():
     bal = get_balance()
     log.info(f"Balance: {bal}")
 
+    # Step 1: Daily reward (works through proxy, no linkvertise)
+    daily_reward()
+
+    # Step 2: Linkvertise coins (needs clean IP)
     remaining = get_cooldown()
     if remaining <= 0:
-        log.info("No claims left today")
+        log.info("No linkvertise claims left today")
         return
 
     success = 0
