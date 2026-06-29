@@ -71,7 +71,13 @@ def run_browser(link_url, verify_url):
     """Use SeleniumBase UC to visit linkvertise and wait for redirect"""
     from seleniumbase import SB
     
-    with SB(uc=True, test=True, headless=True) as sb:
+    PROXY = os.environ.get("PROXY", "").strip()
+    sb_kwargs = {"uc": True, "test": True, "headless": True}
+    if PROXY:
+        sb_kwargs["proxy"] = PROXY
+        log(f"Using proxy: {PROXY[:50]}...")
+    
+    with SB(**sb_kwargs) as sb:
         log(f"opening: {link_url[:60]}...")
         sb.open(link_url)
         sb.sleep(5)
