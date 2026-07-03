@@ -192,6 +192,21 @@ def claim(link_url, verify_url):
         return False
 
 
+def send_tg(msg: str):
+    """Send Telegram notification."""
+    bot_token = os.environ.get("TG_BOT_TOKEN", "")
+    chat_id = os.environ.get("TG_CHAT_ID", "")
+    if not bot_token or not chat_id:
+        log.info("TG notification skipped (no bot token/chat ID)")
+        return
+    try:
+        import urllib.request as ur
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": msg, "parse_mode": "HTML"}).encode()
+        r = ur.urlopen(f"https://api.telegram.org/bot{bot_token}/sendMessage", data=data, timeout=15)
+        log.info(f"TG sent ({r.status})")
+    except Exception as e:
+        log.warning(f"TG failed: {e}")
+
 def daily_reward():
     """Claim daily reward (works without linkvertise)."""
     try:
@@ -243,7 +258,10 @@ def main():
         f.write(f"{bal}")
 
     # Step 1: Daily reward (works through proxy, no linkvertise)
-    daily_reward()
+    reward_ok = daily_reward()
+    bal_now = get_balance()
+    tg_msg = f"<b>🏝 Latvi 签到</b>\n余额: {bal_now} Credits"
+    send_tg(tg_msg)
 
     # Step 2: Linkvertise coins (needs clean IP)
     remaining = get_cooldown()
