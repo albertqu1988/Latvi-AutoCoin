@@ -9,6 +9,8 @@ env:
   LATVI_EMAIL: ${{ secrets.LATVI_EMAIL }}
   LATVI_PASSWORD: ${{ secrets.LATVI_PASSWORD }}
   PROXY: ${{ secrets.PROXY }}
+  TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+  TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
   MAX_CLAIMS: "20"
 
 jobs:
