@@ -33,8 +33,18 @@ if PROXY:
         proxy_type = "HTTP direct"
 
 if use_proxy:
-    sess.proxies.update({"http": use_proxy, "https": use_proxy})
-    log.info(f"Proxy: {proxy_type}")
+    # Test if proxy actually works
+    try:
+        r = requests.get("https://dash.latvi.space/login", proxies={"http": use_proxy, "https": use_proxy}, timeout=10)
+        if r.status_code == 200:
+            sess.proxies.update({"http": use_proxy, "https": use_proxy})
+            log.info(f"Proxy: {proxy_type} ✅")
+        else:
+            log.warning(f"Proxy {proxy_type} returned HTTP {r.status_code}, falling back to direct")
+            use_proxy = None
+    except Exception as e:
+        log.warning(f"Proxy {proxy_type} failed ({e}), falling back to direct")
+        use_proxy = None
 
 sess.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"})
 
