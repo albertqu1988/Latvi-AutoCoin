@@ -61,13 +61,17 @@ def login():
 
 def get_balance():
     r = sess.get(f"{BASE}/home", timeout=15)
-    # Balance is the standalone number before "Store" in nav
-    m = re.search(r'>(\d+\.\d+)<\s*store', r.text, re.I)
-    if m: return float(m.group(1))
-    m = re.search(r'>(\d+\.?\d*)<\s*</a>\s*store', r.text, re.I | re.DOTALL)
-    if m: return float(m.group(1))
-    m = re.search(r'(\d+\.?\d*)\s*credit', r.text, re.I)
-    return float(m.group(1)) if m else 0
+    html = r.text.lower()
+    # Try: number near "credit" or "credits"
+    m = re.search(r'(\d+[.,]?\d*)\s*credit', html)
+    if m: return float(m.group(1).replace(",", ""))
+    # Try: standalone number in nav/balance area
+    m = re.search(r'>\s*(\d+[.,]\d+)\s*<', html)
+    if m: return float(m.group(1).replace(",", ""))
+    # Try: number after "balance" text  
+    m = re.search(r'balance[^<]*?(\d+[.,]?\d*)', html)
+    if m: return float(m.group(1).replace(",", ""))
+    return 0
 
 
 def get_cooldown():
@@ -259,7 +263,11 @@ def main():
     # Step 1: Daily reward (works through proxy, no linkvertise)
     reward_ok = daily_reward()
     bal_now = get_balance()
-    tg_msg = f"<b>🏝 Latvi 签到</b>\n余额: {bal_now} Credits"
+    tg_msg = (
+        f"<b>🏝 Latvi 签到</b>\n"
+        f"<b>Repo:</b> btpp04/Latvi-AutoCoin\n"
+        f"<b>余额:</b> {bal_now} Credits\n"
+    )
     send_tg(tg_msg)
 
     # Step 2: Linkvertise coins (needs clean IP)
