@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '7 0,12 * * *'
   workflow_dispatch:
+    inputs:
+      manual:
+        description: 'Manual trigger'
+        required: false
+        default: 'true'
 
 env:
   LATVI_EMAIL: ${{ secrets.LATVI_EMAIL }}
@@ -89,5 +94,3 @@ for m in re.finditer(r">(\d+\.\d+)<", html):
           python -m playwright install chromium --with-deps 2>&1 | tail -5
           pip install pillow
           python latvi_screenshot.py
-
-# trigger metadata refresh
