@@ -233,8 +233,9 @@ def daily_reward():
                 return False
 
         with open("/tmp/latvi_dr_full.html", "w") as f:
-        f.write(r.text)
-    log.info(f"Daily reward: claiming (streak: {streak.group(1) if streak else '?'})...")
+            f.write(r.text)
+
+        log.info(f"Daily reward: claiming (streak: {streak.group(1) if streak else '?'})...")
         headers = {
             "Content-Type": "application/json",
             "X-CSRF-TOKEN": token,
