@@ -301,7 +301,7 @@ def main():
 
     # Step 2: Linkvertise coins (needs clean IP, skip when no proxy)
     if not use_proxy:
-        log.info("No proxy available, skipping linkvertise coins")
+        log.info("No proxy available, skipping linkvertise coins (daily reward only)")
         bal2 = get_balance()
         send_tg(f"<b>🏝 Latvi 签到</b>\n<b>Repo:</b> btpp04/Latvi-AutoCoin\n<b>余额:</b> {bal2} Credits\n(linkvertise 跳过 - 代理不可用)")
         with open("/tmp/latvi_balance.txt", "w") as f:
@@ -318,7 +318,12 @@ def main():
         return
 
     success = 0
+    fails = 0
+    MAX_FAILS = 3
     for i in range(min(remaining, MAX_CLAIMS)):
+        if fails >= MAX_FAILS:
+            log.info(f"linkvertise verify failed {fails}x, giving up (likely needs real browser) — daily reward already claimed")
+            break
         log.info(f"--- #{i+1} ---")
         link_url, verify_url = generate()
         if not link_url:
@@ -328,8 +333,10 @@ def main():
 
         if claim(link_url, verify_url):
             success += 1
+            fails = 0
             time.sleep(3)
         else:
+            fails += 1
             time.sleep(10)
 
     bal2 = get_balance()
