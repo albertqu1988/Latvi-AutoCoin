@@ -24,14 +24,10 @@ proxy_type = "none"
 
 if PROXY:
     if PROXY.startswith("hysteria2://"):
-        # sing-box tunnel started by workflow → local socks5
-        try:
-            r = requests.get("http://127.0.0.1:1080", timeout=2)
-            use_proxy = "socks5://127.0.0.1:1080"
-            proxy_type = "sing-box (hy2)"
-        except:
-            log.warning("sing-box socks5:1080 not reachable, falling back to direct")
-            use_proxy = None
+        # sing-box tunnel started by workflow listens on socks5://127.0.0.1:1080
+        # (don't probe with HTTP — it's a SOCKS5 port)
+        use_proxy = "socks5://127.0.0.1:1080"
+        proxy_type = "sing-box (hy2)"
     else:
         # Standard proxy (GOST tunnel on :8080 or direct)
         try:
