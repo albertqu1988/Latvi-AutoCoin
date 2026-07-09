@@ -23,14 +23,24 @@ use_proxy = None
 proxy_type = "none"
 
 if PROXY:
-    # Always try GOST tunnel first (keeps IP consistent)
-    try:
-        r = requests.get("http://127.0.0.1:8080", timeout=2)
-        use_proxy = "http://127.0.0.1:8080"
-        proxy_type = "GOST tunnel"
-    except:
-        use_proxy = PROXY
-        proxy_type = "HTTP direct"
+    if PROXY.startswith("hysteria2://"):
+        # sing-box tunnel started by workflow → local socks5
+        try:
+            r = requests.get("http://127.0.0.1:1080", timeout=2)
+            use_proxy = "socks5://127.0.0.1:1080"
+            proxy_type = "sing-box (hy2)"
+        except:
+            log.warning("sing-box socks5:1080 not reachable, falling back to direct")
+            use_proxy = None
+    else:
+        # Standard proxy (GOST tunnel on :8080 or direct)
+        try:
+            r = requests.get("http://127.0.0.1:8080", timeout=2)
+            use_proxy = "http://127.0.0.1:8080"
+            proxy_type = "GOST tunnel"
+        except:
+            use_proxy = PROXY
+            proxy_type = "HTTP direct"
 
 if use_proxy:
     # Test if proxy actually works
