@@ -109,6 +109,17 @@ def daily_reward():
         return False
 
 
+def get_proxy_ip():
+    """Return exit IP of the proxy (empty if none/direct)."""
+    if not use_proxy:
+        return ""
+    try:
+        r = sess.get("https://api.ipify.org", timeout=10)
+        return r.text.strip()
+    except Exception:
+        return "(查不到)"
+
+
 def send_tg(msg: str):
     bot_token = os.environ.get("TG_BOT_TOKEN", "")
     chat_id = os.environ.get("TG_CHAT_ID", "")
@@ -132,9 +143,12 @@ def main():
     reward_ok = daily_reward()
     bal2 = get_balance()
     repo = os.environ.get("GITHUB_REPOSITORY", "btpp04/Latvi-AutoCoin")
+    pip = get_proxy_ip()
+    proxy_line = f"{proxy_type}" + (f" ({pip})" if pip else "")
     msg = (
         f"<b>🏝 Latvi 签到</b>\n"
         f"<b>📦 Repo:</b> {repo}\n"
+        f"<b>🛡️ 代理:</b> {proxy_line}\n"
         f"<b>💰 余额:</b> {bal2} Credits\n"
         f"<b>🪙 每日领币:</b> {'✅ 已领取' if reward_ok else '⏳ 未到时间/已领'}\n"
     )
