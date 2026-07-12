@@ -3,11 +3,11 @@
 import os, sys, re, json
 from datetime import datetime, timezone
 
-EMAIL = os.environ.get("LATVI_EMAIL", "btpp03@gmail.com")
-PASSWORD = os.environ.get("LATVI_PASSWORD", "Hlm@0649")
+EMAIL = os.environ.get("LATVI_EMAIL", "")
+PASSWORD = os.environ.get("LATVI_PASSWORD", "")
 PROXY = os.environ.get("PROXY", "").strip()
-TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "7935239797:AAHuQ9jZt-cNjcgjqQ9HH0JzkSWlD53EttM")
-TG_CHAT_ID = os.environ.get("TG_CHAT_ID", "644320820")
+TG_BOT_TOKEN = os.environ.get("TG_BOT_TOKEN", "")
+TG_CHAT_ID = os.environ.get("TG_CHAT_ID", "")
 
 from playwright.sync_api import sync_playwright
 
@@ -70,7 +70,7 @@ def main():
         f"🦾 Latvi Auto Coin\n"
         f"📅 {now}\n"
         f"💰 Balance: {bal} credits\n"
-        f"👤 btpp03@gmail.com"
+        f"👤 robert.qu1977@gmail.com"
     )
 
     import urllib.request
