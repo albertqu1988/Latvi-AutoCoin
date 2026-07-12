@@ -18,8 +18,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("latvi")
 
 BASE = "https://dash.latvi.space"
-EMAIL = os.environ.get("LATVI_EMAIL", "btpp03@gmail.com")
-PASSWORD = os.environ.get("LATVI_PASSWORD", "Hlm@0649")
+EMAIL = os.environ.get("LATVI_EMAIL", "")
+PASSWORD = os.environ.get("LATVI_PASSWORD", "")
 PROXY = os.environ.get("PROXY", "").strip()
 
 import requests
@@ -147,7 +147,7 @@ def main():
     log.info(f"余额: {bal}")
     reward_ok = daily_reward()
     bal2 = get_balance()
-    repo = os.environ.get("GITHUB_REPOSITORY", "btpp04/Latvi-AutoCoin")
+    repo = os.environ.get("GITHUB_REPOSITORY", "albertqu1988/Latvi-AutoCoin")
     pip = get_proxy_ip()
     proxy_line = f"{proxy_type}" + (f" ({pip})" if pip else "")
     msg = (
